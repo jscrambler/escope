@@ -21,12 +21,14 @@
   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-import { Syntax } from 'estraverse';
+
+import assert from 'assert';
 import esrecurse from 'esrecurse';
+import { Syntax } from 'estraverse';
+
 import Reference from './reference';
 import Variable from './variable';
 import { ParameterDefinition, Definition } from './definition';
-import assert from 'assert';
 
 class PatternVisitor extends esrecurse.Visitor {
     constructor(rootPattern, referencer, callback) {
@@ -151,6 +153,8 @@ export default class Referencer extends esrecurse.Visitor {
     close(node) {
         if (this.scopeManager.isInstrumentingTree()) {
             node.scope = this.currentScope();
+        } else if (node.scope) {
+            delete node.scope;
         }
         while (this.currentScope() && node === this.currentScope().block) {
             this.scopeManager.__currentScope = this.currentScope().__close(this.scopeManager);
