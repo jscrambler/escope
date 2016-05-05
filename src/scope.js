@@ -56,7 +56,7 @@ function isStrictScope(scope, block, isMethodDefinition, useDirective) {
     }
 
     if (scope.type === 'function') {
-        if (block.type === 'Program') {
+        if (block.type === Syntax.Program) {
             body = block;
         } else {
             body = block.body;
@@ -71,7 +71,7 @@ function isStrictScope(scope, block, isMethodDefinition, useDirective) {
     if (useDirective) {
         for (i = 0, iz = body.body.length; i < iz; ++i) {
             stmt = body.body[i];
-            if (stmt.type !== 'DirectiveStatement') {
+            if (stmt.type !== Syntax.DirectiveStatement) {
                 break;
             }
             if (stmt.raw === '"use strict"' || stmt.raw === '\'use strict\'') {
@@ -115,6 +115,13 @@ function registerScope(scopeManager, scope) {
     }
 }
 
+function shouldBeStatically(def) {
+    return (
+        (def.type === Variable.ClassName) ||
+        (def.type === Variable.Variable && def.parent.kind !== 'var')
+    );
+}
+
 /**
  * @class Scope
  */
@@ -142,7 +149,7 @@ export default class Scope {
          * a few exceptions to this rule. With 'global' and 'with' scopes you
          * can only decide at runtime which variable a reference refers to.
          * Moreover, if 'eval()' is used in a scope, it might introduce new
-         * bindings in this or its prarent scopes.
+         * bindings in this or its parent scopes.
          * All those scopes are considered 'dynamic'.
          * @member {boolean} Scope#dynamic
          */
@@ -220,6 +227,8 @@ export default class Scope {
             this.upper.childScopes.push(this);
         }
 
+        this.__declaredVariables = scopeManager.__declaredVariables;
+
         registerScope(scopeManager, this);
     }
 
@@ -227,37 +236,60 @@ export default class Scope {
         return (!this.dynamic || scopeManager.__isOptimistic());
     }
 
-    __staticClose(scopeManager) {
-        // static resolve
-        for (let i = 0, iz = this.__left.length; i < iz; ++i) {
-            let ref = this.__left[i];
-            if (!this.__resolve(ref)) {
-                this.__delegateToUpperScope(ref);
-            }
+    __shouldStaticallyCloseForGlobal(ref) {
+        // On global scope, let/const/class declarations should be resolved statically.
+        var name = ref.identifier.name;
+        if (!this.set.has(name)) {
+            return false;
+        }
+
+        var variable = this.set.get(name);
+        var defs = variable.defs;
+        return defs.length > 0 && defs.every(shouldBeStatically);
+    }
+
+    __staticCloseRef(ref) {
+        if (!this.__resolve(ref)) {
+            this.__delegateToUpperScope(ref);
         }
     }
 
-    __dynamicClose(scopeManager) {
-        // This path is for "global" and "function with eval" environment.
-        for (let i = 0, iz = this.__left.length; i < iz; ++i) {
-            // notify all names are through to global
-            let ref = this.__left[i];
-            let current = this;
-            do {
-                current.through.push(ref);
-                current = current.upper;
-            } while (current);
+    __dynamicCloseRef(ref) {
+        // notify all names are through to global
+        let current = this;
+        do {
+            current.through.push(ref);
+            current = current.upper;
+        } while (current);
+    }
+
+    __globalCloseRef(ref) {
+        // let/const/class declarations should be resolved statically.
+        // others should be resolved dynamically.
+        if (this.__shouldStaticallyCloseForGlobal(ref)) {
+            this.__staticCloseRef(ref);
+        } else {
+            this.__dynamicCloseRef(ref);
         }
     }
 
     __close(scopeManager) {
+        var closeRef;
         if (this.__shouldStaticallyClose(scopeManager)) {
-            this.__staticClose();
+            closeRef = this.__staticCloseRef;
+        } else if (this.type !== 'global') {
+            closeRef = this.__dynamicCloseRef;
         } else {
-            this.__dynamicClose();
+            closeRef = this.__globalCloseRef;
         }
 
+        // Try Resolving all references in this scope.
+        for (let i = 0, iz = this.__left.length; i < iz; ++i) {
+            let ref = this.__left[i];
+            closeRef.call(this, ref);
+        }
         this.__left = null;
+
         return this.upper;
     }
 
@@ -285,6 +317,21 @@ export default class Scope {
         this.through.push(ref);
     }
 
+    __addDeclaredVariablesOfNode(variable, node) {
+        if (node == null) {
+            return;
+        }
+
+        var variables = this.__declaredVariables.get(node);
+        if (variables == null) {
+            variables = [];
+            this.__declaredVariables.set(node, variables);
+        }
+        if (variables.indexOf(variable) === -1) {
+            variables.push(variable);
+        }
+    }
+
     __defineGeneric(name, set, variables, node, def) {
         var variable;
 
@@ -297,6 +344,10 @@ export default class Scope {
 
         if (def) {
             variable.defs.push(def);
+            if (def.type !== Variable.TDZ) {
+                this.__addDeclaredVariablesOfNode(variable, def.node);
+                this.__addDeclaredVariablesOfNode(variable, def.parent);
+            }
         }
         if (node) {
             variable.identifiers.push(node);
@@ -314,7 +365,7 @@ export default class Scope {
         }
     }
 
-    __referencing(node, assign, writeExpr, maybeImplicitGlobal, partial) {
+    __referencing(node, assign, writeExpr, maybeImplicitGlobal, partial, init) {
         // because Array element may be null
         if (!node || node.type !== Syntax.Identifier) {
             return;
@@ -325,7 +376,7 @@ export default class Scope {
             return;
         }
 
-        let ref = new Reference(node, this, assign || Reference.READ, writeExpr, maybeImplicitGlobal, !!partial);
+        let ref = new Reference(node, this, assign || Reference.READ, writeExpr, maybeImplicitGlobal, !!partial, !!init);
         this.references.push(ref);
         this.__left.push(ref);
     }
