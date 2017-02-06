@@ -22,10 +22,10 @@
   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-import assert from 'assert';
 import WeakMap from 'es6-weak-map';
-
 import Scope from './scope';
+import assert from 'assert';
+
 import {
     GlobalScope,
     CatchScope,
@@ -50,7 +50,6 @@ export default class ScopeManager {
         this.__nodeToScope = new WeakMap();
         this.__currentScope = null;
         this.__options = options;
-        this.__declaredVariables = new WeakMap();
     }
 
     __useDirective() {
@@ -78,31 +77,8 @@ export default class ScopeManager {
     }
 
     // Returns appropliate scope for this node.
-    isImpliedStrict() {
-        return this.__options.impliedStrict;
-    }
-
-    isStrictModeSupported() {
-        return this.__options.ecmaVersion >= 5;
-    }
-
-    // Returns appropriate scope for this node.
     __get(node) {
         return this.__nodeToScope.get(node);
-    }
-
-    /**
-     * Get variables that are declared by the node.
-     *
-     * "are declared by the node" means the node is same as `Variable.defs[].node` or `Variable.defs[].parent`.
-     * If the node declares nothing, this method returns an empty array.
-     * CAUTION: This API is experimental. See https://github.com/estools/escope/pull/69 for more details.
-     *
-     * @param {Esprima.Node} node - a node to get.
-     * @returns {Variable[]} variables that declared by the node.
-     */
-    getDeclaredVariables(node) {
-        return this.__declaredVariables.get(node) || [];
     }
 
     /**
