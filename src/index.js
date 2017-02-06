@@ -65,7 +65,7 @@ function defaultOptions() {
         impliedStrict: false,
         sourceType: 'script',  // one of ['script', 'module']
         ecmaVersion: 5,
-        instrumentTree: false
+        instrumentTree: false,
         childVisitorKeys: null,
         fallback: 'iteration'
     };
