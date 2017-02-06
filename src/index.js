@@ -50,11 +50,11 @@
 
 import assert from 'assert';
 
-import ScopeManager from './scope-manager';
-import Referencer from './referencer';
 import Reference from './reference';
-import Variable from './variable';
+import Referencer from './referencer';
 import Scope from './scope';
+import ScopeManager from './scope-manager';
+import Variable from './variable';
 import { version } from '../package.json';
 
 function defaultOptions() {
