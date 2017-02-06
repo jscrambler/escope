@@ -31,7 +31,7 @@ const RW = READ | WRITE;
  * @class Reference
  */
 export default class Reference {
-    constructor(ident, scope, flag,  writeExpr, maybeImplicitGlobal, partial, init) {
+    constructor(ident, scope, flag,  writeExpr, maybeImplicitGlobal, partial) {
         /**
          * Identifier syntax node.
          * @member {esprima#Identifier} Reference#identifier
@@ -71,11 +71,6 @@ export default class Reference {
              * @member {boolean} Reference#partial
              */
             this.partial = partial;
-            /**
-             * Whether the Reference is to write of initialization.
-             * @member {boolean} Reference#init
-             */
-            this.init = init;
         }
         this.__maybeImplicitGlobal = maybeImplicitGlobal;
     }
